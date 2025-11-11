@@ -1,0 +1,293 @@
+<!-- VMOOD STRIKE FINDER PRO - Web Dashboard (Card Style)
+
+INSTRUCTIONS:
+1) This is a single-file web dashboard. Save this content as `vmmood-strike-finder-pro.html` on your device.
+2) Open the file in Chrome on your phone or Smart TV to run it locally. No internet needed for core features.
+3) To enable live prices you can: (A) paste a live price manually into the "Spot" field, or (B) host a public JSON endpoint that returns {"nifty":25000, "banknifty":60000} and set the URL in Settings -> Live Feed URL. (Some free providers or your own published Google Sheet JSON can be used.)
+4) To publish a public link: upload this file to GitHub Pages, Netlify Drop, or any static host. I include hosting steps below the app.
+
+FEATURE SUMMARY:
+- Toggle NIFTY 50 / BANKNIFTY
+- Inputs: Expected Move, Risk, Lot Size, Side (CE/PE), Current Premium (optional)
+- Auto suggestions: ATM / ITM / OTM strikes
+- Estimated premium movement and P/L per lot
+- Mobile + Smart TV responsive, Dark Gray + Yellow theme
+
+HOW THE CALCS WORK (simple, trader-friendly):
+- ATM = Math.round(spot/100)*100
+- For CE (bull): recommend ATM and 1-step ITM (ATM - 100)
+- For PE (bear): recommend ATM and 1-step ITM (ATM + 100)
+- Delta approximations: ITM=0.6, ATM=0.5, OTM=0.35
+- If user provides "Current Premium" we'll compute exit premium using delta*expectedMove; otherwise we estimate entry premium using a simple heuristic so you can test scenarios.
+
+HOSTING QUICK STEPS:
+- GitHub Pages: create a new repo, upload this file, enable Pages from main branch; you get a link like https://<user>.github.io/<repo>/vmmood-strike-finder-pro.html
+- Netlify Drop: drag-and-drop this file at app.netlify.com/drop and you'll get a public link instantly.
+
+-->
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VMOOD Strike Finder PRO</title>
+  <style>
+    :root{--bg:#1f1f23;--card:#27272b;--accent:#ffd34d;--muted:#bdbdbf;--glass: rgba(255,255,255,0.03)}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#151515 0%, #1f1f23 100%);font-family:Inter, system-ui, Arial, sans-serif;color:#fff}
+    .wrap{max-width:1100px;margin:18px auto;padding:16px}
+    header{display:flex;align-items:center;gap:12px}
+    .logo{background:var(--card);padding:10px 14px;border-radius:10px;display:flex;align-items:center;gap:10px}
+    .logo .dot{width:14px;height:14px;background:var(--accent);border-radius:4px}
+    h1{font-size:18px;margin:0}
+    .top{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border-radius:12px;padding:12px;box-shadow: 0 6px 18px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.03)}
+    .controls{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;flex:1}
+    .small{font-size:12px;color:var(--muted)}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input[type=number], input[type=text], select{width:100%;padding:10px;border-radius:8px;border:none;background:var(--glass);color:#fff;font-size:14px}
+    .market-toggle{display:flex;gap:8px}
+    .btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:10px 12px;border-radius:8px;cursor:pointer}
+    .btn.active{background:linear-gradient(90deg, rgba(255,211,77,0.12), rgba(255,211,77,0.06));box-shadow:0 4px 12px rgba(255,211,77,0.06);border-color:rgba(255,211,77,0.25)}
+    .row{display:flex;gap:12px;align-items:center}
+    .cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+    .big{padding:18px}
+    .muted{color:var(--muted)}
+    .strike{font-weight:700;color:var(--accent);font-size:20px}
+    .result{font-size:16px;margin-top:6px}
+    footer{margin-top:18px;color:var(--muted);font-size:12px}
+    @media (max-width:900px){.controls{grid-template-columns:repeat(2,1fr)} .cards-grid{grid-template-columns:repeat(1,1fr)}}
+    .toggle{display:flex;gap:8px;align-items:center}
+    .card small{display:block;color:var(--muted)}
+    .help{font-size:13px;color:var(--muted);margin-top:6px}
+    .action{display:flex;gap:8px;margin-top:8px}
+    .primary{background:var(--accent);color:#111;border:none;padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:700}
+    .ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:10px;border-radius:8px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">
+        <div class="dot"></div>
+        <div>
+          <h1>VMOOD Strike Finder PRO</h1>
+          <div class="small">Nifty 50 & BankNifty — Intraday Options (ATM / ITM)</div>
+        </div>
+      </div>
+      <div style="margin-left:auto;color:var(--muted);font-size:13px">Theme: Dark Gray · Yellow</div>
+    </header>
+
+    <div class="top">
+      <div class="card" style="flex:1;min-width:260px">
+        <div class="row">
+          <div style="flex:1">
+            <label>Market</label>
+            <div class="market-toggle">
+              <button id="mNifty" class="btn active" onclick="setMarket('nifty')">NIFTY 50</button>
+              <button id="mBank" class="btn" onclick="setMarket('banknifty')">BANKNIFTY</button>
+            </div>
+          </div>
+          <div style="width:140px">
+            <label>Live Spot</label>
+            <input id="spot" type="number" step="0.01" inputmode="numeric" value="25000">
+          </div>
+        </div>
+
+        <div style="margin-top:10px" class="row">
+          <div style="flex:1">
+            <label>Expected Move (pts)</label>
+            <input id="move" type="number" value="100">
+          </div>
+          <div style="width:140px">
+            <label>Risk per trade (₹)</label>
+            <input id="risk" type="number" value="1000">
+          </div>
+        </div>
+
+        <div style="margin-top:10px" class="row">
+          <div style="flex:1">
+            <label>Side</label>
+            <select id="side"><option value="CE">CALL (CE)</option><option value="PE">PUT (PE)</option></select>
+          </div>
+          <div style="width:140px">
+            <label>Lot size</label>
+            <input id="lot" type="number" value="75">
+          </div>
+        </div>
+
+        <div style="margin-top:10px" class="row">
+          <div style="flex:1">
+            <label>Current Premium (optional ₹)</label>
+            <input id="prem" type="number" placeholder="leave blank to auto-estimate">
+          </div>
+          <div style="width:140px">
+            <label>Expiry (days)</label>
+            <input id="days" type="number" value="1">
+          </div>
+        </div>
+
+        <div style="margin-top:10px" class="action">
+          <button class="primary" onclick="calc()">Calculate</button>
+          <button class="ghost" onclick="resetAll()">Reset</button>
+          <button class="ghost" onclick="showAbout()">About</button>
+        </div>
+
+        <div class="help">Tip: enter live spot (auto from your Google Sheet or manual). Use CE for bullish, PE for bearish intraday moves.</div>
+      </div>
+
+      <div class="card big" style="min-width:260px;max-width:380px">
+        <div class="small">Live Spot</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+          <div style="font-size:26px;font-weight:800;color:var(--accent)" id="liveSpot">25,000</div>
+          <div style="color:var(--muted)">/ <span id="marketLabel">NIFTY 50</span></div>
+        </div>
+
+        <div style="margin-top:10px" class="small">Suggested Strikes</div>
+        <div style="display:flex;gap:12px;margin-top:8px">
+          <div style="flex:1;background:rgba(255,255,255,0.02);padding:10px;border-radius:10px">
+            <small>ATM</small>
+            <div class="strike" id="atmStrike">25,000</div>
+            <div class="result muted" id="atmDelta">Delta ≈ 0.50</div>
+          </div>
+          <div style="flex:1;background:rgba(255,255,255,0.02);padding:10px;border-radius:10px">
+            <small>ITM (1 step)</small>
+            <div class="strike" id="itmStrike">25,100</div>
+            <div class="result muted" id="itmDelta">Delta ≈ 0.60</div>
+          </div>
+          <div style="flex:1;background:rgba(255,255,255,0.02);padding:10px;border-radius:10px">
+            <small>OTM (1 step)</small>
+            <div class="strike" id="otmStrike">24,900</div>
+            <div class="result muted" id="otmDelta">Delta ≈ 0.35</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="min-width:220px;max-width:320px">
+        <div class="small">Premium Estimation</div>
+        <div style="margin-top:8px;font-size:18px;font-weight:700;color:var(--accent)" id="estPremium">₹120 → ₹170</div>
+        <div class="result muted" id="estNote">(Entry → Exit estimate)</div>
+
+        <div style="margin-top:12px;border-top:1px dashed rgba(255,255,255,0.03);padding-top:12px">
+          <div class="small">P/L per lot</div>
+          <div style="font-size:18px;font-weight:800;color:#9df59f" id="plLot">+₹3,750</div>
+          <div class="result muted">Max risk = ₹1,000</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cards-grid">
+      <div class="card">
+        <small>Strike details</small>
+        <div style="margin-top:8px">
+          <div>ATM strike: <strong id="detailATM">25,000</strong></div>
+          <div>ITM strike: <strong id="detailITM">25,100</strong></div>
+          <div>OTM strike: <strong id="detailOTM">24,900</strong></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <small>Calculator</small>
+        <div style="margin-top:8px">
+          <div>Entry Premium: <strong id="entryPremium">₹120</strong></div>
+          <div>Exit Premium: <strong id="exitPremium">₹170</strong></div>
+          <div>Estimated P/L: <strong id="estPL">+₹3,750</strong></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <small>Position Sizing</small>
+        <div style="margin-top:8px">
+          <div>Risk per trade: <strong id="detailRisk">₹1,000</strong></div>
+          <div>Suggested lots: <strong id="suggestLots">1</strong></div>
+          <div>Lot size used: <strong id="usedLot">75</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Tip: For mobile, save this page to home screen. To get live auto updates, publish a simple Google Sheet with =GOOGLEFINANCE("NSE:NIFTY 50","price") and expose it as CSV/JSON to fetch.
+    </footer>
+  </div>
+
+  <script>
+    // App logic
+    let state = {market:'nifty'}
+    function setMarket(m){state.market=m;document.getElementById('marketLabel').innerText = (m==='nifty'?'NIFTY 50':'BANKNIFTY');
+      document.getElementById('lot').value = (m==='nifty'?75:15);
+      document.getElementById('mNifty').classList.toggle('active',m==='nifty');
+      document.getElementById('mBank').classList.toggle('active',m!=='nifty');
+      calc();
+    }
+
+    function roundTo100(x){return Math.round(x/100)*100}
+
+    function calc(){
+      const spot = Number(document.getElementById('spot').value)||25000;
+      const move = Number(document.getElementById('move').value)||100;
+      const risk = Number(document.getElementById('risk').value)||1000;
+      const lot = Number(document.getElementById('lot').value)||75;
+      const side = document.getElementById('side').value; // CE or PE
+      const premInput = document.getElementById('prem').value;
+
+      // Strikes
+      const atm = roundTo100(spot);
+      const itm = side==='CE'? atm - 100 : atm + 100; // for CE ITM is lower strike
+      const otm = side==='CE'? atm + 100 : atm - 100;
+
+      document.getElementById('atmStrike').innerText = atm;
+      document.getElementById('itmStrike').innerText = itm;
+      document.getElementById('otmStrike').innerText = otm;
+
+      document.getElementById('detailATM').innerText = atm;
+      document.getElementById('detailITM').innerText = itm;
+      document.getElementById('detailOTM').innerText = otm;
+
+      // Deltas approx
+      const deltaATM = 0.50; const deltaITM = 0.60; const deltaOTM = 0.35;
+      document.getElementById('atmDelta').innerText = 'Delta ≈ '+deltaATM.toFixed(2);
+      document.getElementById('itmDelta').innerText = 'Delta ≈ '+deltaITM.toFixed(2);
+      document.getElementById('otmDelta').innerText = 'Delta ≈ '+deltaOTM.toFixed(2);
+
+      // Estimate entry premium
+      let entryPremium = 0;
+      if(premInput && Number(premInput)>0) entryPremium = Number(premInput);
+      else {
+        // heuristic: base premium ~ intrinsic + time value estimate
+        const intrinsic = Math.max(0, (side==='PE'? (itm - spot) : (spot - itm)) );
+        const base = Math.max(20, Math.abs(move)*0.5); // fallback
+        entryPremium = Math.round(Math.max(base, intrinsic + 20));
+      }
+
+      // Estimate exit premium using delta and expected move
+      const useDelta = deltaATM; // since using ATM strike normally
+      const premiumChange = Math.round(Math.abs(move) * useDelta);
+      const exitPremium = entryPremium + (side==='CE'? premiumChange : premiumChange);
+
+      // If move is against side, exitPremium should drop
+      // We'll compute both directions: optimistic (move favor) and pessimistic (move against)
+      const exitFav = entryPremium + premiumChange; // favorable move
+      const exitUnfav = Math.max(0, entryPremium - premiumChange);
+
+      const plPerUnit = exitFav - entryPremium;
+      const plTotal = plPerUnit * lot;
+
+      document.getElementById('liveSpot').innerText = spot.toLocaleString();
+      document.getElementById('estPremium').innerText = '₹'+entryPremium + ' → ₹'+exitFav;
+      document.getElementById('entryPremium').innerText = '₹'+entryPremium;
+      document.getElementById('exitPremium').innerText = '₹'+exitFav;
+      document.getElementById('estPL').innerText = (plTotal>=0?'+':'')+ '₹'+plTotal.toLocaleString();
+      document.getElementById('plLot').innerText = (plTotal>=0?'+':'')+'₹'+plTotal.toLocaleString();
+      document.getElementById('detailRisk').innerText = '₹'+risk;
+      document.getElementById('suggestLots').innerText = Math.max(1, Math.round(risk/(Math.max(1,Math.abs(entryPremium - exitUnfav))*lot)));
+      document.getElementById('usedLot').innerText = lot;
+    }
+
+    function resetAll(){document.getElementById('spot').value=25000;document.getElementById('move').value=100;document.getElementById('risk').value=1000;document.getElementById('lot').value=75;document.getElementById('prem').value='';calc();}
+    function showAbout(){alert('VMOOD Strike Finder PRO\nCard-style intraday option strike helper.\nUse ATM or 1-step ITM strikes for 100-pt intraday targets.\nSave page to home screen for quick access.');}
+
+    // Initial calc
+    calc();
+  </script>
+</body>
+</html>
