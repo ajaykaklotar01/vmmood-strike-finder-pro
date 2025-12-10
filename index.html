@@ -1,7 +1,7 @@
-<!-- VMOOD STRIKE FINDER PRO - Web Dashboard (Card Style)
+<!-- TradeVibe STRIKE FINDER PRO - Web Dashboard (Card Style)
 
 INSTRUCTIONS:
-1) This is a single-file web dashboard. Save this content as `vmmood-strike-finder-pro.html` on your device.
+1) This is a single-file web dashboard. Save this content as `TradeVibe-strike-finder-pro.html` on your device.
 2) Open the file in Chrome on your phone or Smart TV to run it locally. No internet needed for core features.
 3) To enable live prices you can: (A) paste a live price manually into the "Spot" field, or (B) host a public JSON endpoint that returns {"nifty":25000, "banknifty":60000} and set the URL in Settings -> Live Feed URL. (Some free providers or your own published Google Sheet JSON can be used.)
 4) To publish a public link: upload this file to GitHub Pages, Netlify Drop, or any static host. I include hosting steps below the app.
@@ -31,7 +31,7 @@ HOSTING QUICK STEPS:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>VMOOD Strike Finder PRO</title>
+  <title>TradeVibe Strike Finder PRO</title>
   <style>
     :root{--bg:#1f1f23;--card:#27272b;--accent:#ffd34d;--muted:#bdbdbf;--glass: rgba(255,255,255,0.03)}
     html,body{height:100%;margin:0;background:linear-gradient(180deg,#151515 0%, #1f1f23 100%);font-family:Inter, system-ui, Arial, sans-serif;color:#fff}
@@ -284,7 +284,7 @@ HOSTING QUICK STEPS:
     }
 
     function resetAll(){document.getElementById('spot').value=25000;document.getElementById('move').value=100;document.getElementById('risk').value=1000;document.getElementById('lot').value=75;document.getElementById('prem').value='';calc();}
-    function showAbout(){alert('VMOOD Strike Finder PRO\nCard-style intraday option strike helper.\nUse ATM or 1-step ITM strikes for 100-pt intraday targets.\nSave page to home screen for quick access.');}
+    function showAbout(){alert('TradeVibe Strike Finder PRO\nCard-style intraday option strike helper.\nUse ATM or 1-step ITM strikes for 100-pt intraday targets.\nSave page to home screen for quick access.');}
 
     // Initial calc
     calc();
